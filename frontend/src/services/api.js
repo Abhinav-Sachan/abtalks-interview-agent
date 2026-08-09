@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://abtalks-interview-agent-1.onrender.com/api';
 
 export const interviewApi = {
   async startSession(sessionData) {
