@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://abtalks-interview-agent-1.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://abtalks-interview-agent-1.onrender.com/api';
 
 export const interviewApi = {
   async startSession(sessionData) {
@@ -12,7 +12,7 @@ export const interviewApi = {
     if (!response.ok) throw new Error('Failed to start session');
     const data = await response.json();
     return {
-      session_id: data.session_id,   // <-- use the REAL id the backend created
+      session_id: data.session_id,
       reply: data.reply,
       is_complete: data.is_complete || false
     };
