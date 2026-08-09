@@ -1,4 +1,10 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
+from interview import session_manager, ai_agent, evaluator
+
+# Initialize the router here!
+router = APIRouter()
 
 class InterviewRequest(BaseModel):
     sessionId: str
