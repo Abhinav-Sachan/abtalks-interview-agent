@@ -14,8 +14,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount our interview routes
-app.include_router(interview_router, prefix="/api/interview")
+# Mount our interview routes cleanly at /api
+app.include_router(interview_router, prefix="/api")
 
 @app.get("/")
 def health_check():

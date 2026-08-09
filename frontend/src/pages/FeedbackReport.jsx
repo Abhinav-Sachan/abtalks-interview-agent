@@ -1,33 +1,7 @@
-import { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, RefreshCw, Award, Code, Brain, Loader2 } from 'lucide-react';
-import { interviewApi } from '../services/api';
+import { CheckCircle2, AlertCircle, RefreshCw, Award, Code, Brain } from 'lucide-react';
 
-export default function FeedbackReport({ sessionData, onRestart }) {
-  const [report, setReport] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchReport = async () => {
-      try {
-        const data = await interviewApi.getEvaluation();
-        setReport(data);
-      } catch (err) {
-        console.error("Evaluation failed", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchReport();
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex-grow flex flex-col items-center justify-center bg-slate-900 p-6 text-blue-400">
-        <Loader2 size={48} className="animate-spin mb-4" />
-        <p className="text-xl font-bold animate-pulse">Groq LPU is analyzing your transcript...</p>
-      </div>
-    );
-  }
+export default function FeedbackReport({ sessionData, feedback, onRestart }) {
+  const report = feedback;
 
   if (!report) return <div className="text-white text-center mt-20">Error loading report.</div>;
 
@@ -36,7 +10,7 @@ export default function FeedbackReport({ sessionData, onRestart }) {
   return (
     <div className="flex-grow flex items-center justify-center bg-slate-900 p-6">
       <div className="max-w-3xl w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
-        
+
         {/* Header */}
         <div className="p-8 bg-slate-800/80 border-b border-slate-700 flex justify-between items-center">
           <div>

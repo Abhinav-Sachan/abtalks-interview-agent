@@ -1,37 +1,38 @@
-const API_BASE_URL = 'http://localhost:8000/api/interview';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 export const interviewApi = {
-  async startSession(candidateData) {
-    const response = await fetch(`${API_BASE_URL}/start`, {
+  async startSession(sessionData) {
+    const response = await fetch(`${API_BASE_URL}/interview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: candidateData.name,
-        target_role: candidateData.role,
-        experience_level: candidateData.level
+        candidate: sessionData || { name: "Abhinav", role: "Engineer" }
       }),
     });
-    if (!response.ok) throw new Error('Failed to start interview');
-    return response.json(); 
+    if (!response.ok) throw new Error('Failed to start session');
+    const data = await response.json();
+    return {
+      session_id: data.session_id,   // <-- use the REAL id the backend created
+      reply: data.reply,
+      is_complete: data.is_complete || false
+    };
   },
 
-  async sendMessage(sessionId, message) {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
+  async sendMessage(sessionId, messageText) {
+    const response = await fetch(`${API_BASE_URL}/interview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        session_id: sessionId,
-        message: message
+        sessionId: sessionId,
+        message: messageText
       }),
     });
     if (!response.ok) throw new Error('Failed to send message');
-    return response.json(); 
-  },
-
-  // 🔌 NEW: Fetch the dynamic report
-  async getEvaluation() {
-    const response = await fetch(`${API_BASE_URL}/evaluate/latest`);
-    if (!response.ok) throw new Error('Failed to fetch evaluation');
-    return response.json();
+    const data = await response.json();
+    return {
+      reply: data.reply,
+      is_complete: data.is_complete || false,
+      feedback: data.feedback
+    };
   }
 };

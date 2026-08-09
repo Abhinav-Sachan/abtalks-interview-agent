@@ -8,23 +8,20 @@ export default function InterviewRoom({ sessionData, onEnd }) {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   useEffect(() => scrollToBottom(), [messages, isLoading]);
 
-  // Start the interview on mount
   useEffect(() => {
     const initializeInterview = async () => {
       try {
         const data = await interviewApi.startSession(sessionData);
         setSessionId(data.session_id);
-        
-        // Add initial system greeting
+
         setMessages([{
           role: 'assistant',
           content: `Hello ${sessionData.name}. I am your AI interviewer for the ${sessionData.level} ${sessionData.role} position. Are you ready to begin?`
@@ -40,7 +37,7 @@ export default function InterviewRoom({ sessionData, onEnd }) {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || !sessionId) return;
 
     const userMessage = inputValue;
     setInputValue('');
@@ -49,11 +46,12 @@ export default function InterviewRoom({ sessionData, onEnd }) {
 
     try {
       const response = await interviewApi.sendMessage(sessionId, userMessage);
-      
+
       setMessages(prev => [...prev, { role: 'assistant', content: response.reply }]);
-      
+
       if (response.is_complete) {
-        setTimeout(onEnd, 3000); // Wait 3 seconds then go to feedback
+        // Pass the REAL feedback object up to App, not a re-fetch
+        setTimeout(() => onEnd(response.feedback), 3000);
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'system', content: 'Connection error. Please try again.' }]);
@@ -75,7 +73,6 @@ export default function InterviewRoom({ sessionData, onEnd }) {
 
   return (
     <div className="flex-grow flex flex-col bg-slate-900 max-w-4xl w-full mx-auto shadow-2xl border-x border-slate-800">
-      {/* Header */}
       <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
         <div className="flex items-center gap-3">
           <div className="bg-blue-500/20 p-2 rounded-lg text-blue-400"><Code2 size={20}/></div>
@@ -84,18 +81,17 @@ export default function InterviewRoom({ sessionData, onEnd }) {
             <p className="text-slate-400 text-xs">Candidate: {sessionData.name}</p>
           </div>
         </div>
-        <button onClick={onEnd} className="text-sm text-red-400 hover:text-red-300 transition-colors">
+        <button onClick={() => onEnd(null)} className="text-sm text-red-400 hover:text-red-300 transition-colors">
           End Early
         </button>
       </div>
 
-      {/* Chat History */}
       <div className="flex-grow p-4 overflow-y-auto space-y-4 scroll-smooth">
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] rounded-2xl p-4 ${
-              msg.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-br-sm' 
+              msg.role === 'user'
+                ? 'bg-blue-600 text-white rounded-br-sm'
                 : msg.role === 'system'
                   ? 'bg-red-500/20 text-red-300 border border-red-500/50 mx-auto'
                   : 'bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700'
@@ -114,7 +110,6 @@ export default function InterviewRoom({ sessionData, onEnd }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <div className="p-4 bg-slate-800 border-t border-slate-700">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input

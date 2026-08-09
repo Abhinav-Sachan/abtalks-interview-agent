@@ -1,60 +1,71 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from interview import session_manager, ai_agent, evaluator
 
-# Initialize the router here!
+from interview.session_manager import create_session, get_session, update_session
+from interview.ai_agent import generate_response
+from interview.evaluator import generate_report
+
 router = APIRouter()
 
 class InterviewRequest(BaseModel):
-    sessionId: str
+    sessionId: Optional[str] = None
     candidate: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
 
+
 @router.post("/interview")
-def handle_official_interview(payload: InterviewRequest):
+def handle_interview(payload: InterviewRequest):
     try:
-        session_id = payload.sessionId
-
-        # 1. Start Interview Turn (Bot sends candidate data)
+        # --- Case 1: Starting a NEW session ---
         if payload.candidate is not None:
-            # We save the raw candidate JSON so the AI can read their missions
-            session_manager.create_session_with_id(session_id, {"raw_candidate": payload.candidate})
+            session_id = create_session(payload.candidate)
+            greeting = f"Hello {payload.candidate.get('name', 'there')}. I am your AI interviewer for the {payload.candidate.get('level','')} {payload.candidate.get('role','')} position. Are you ready to begin?"
+
+            update_session(session_id, {"role": "assistant", "content": greeting})
+
             return {
-                "reply": "Welcome to your AI Cohort technical interview. Let's discuss the systems you've built.",
-                "done": False
+                "session_id": session_id,
+                "reply": greeting,
+                "is_complete": False
             }
 
-        # 2. Conversation Turn (Bot sends user message)
-        session = session_manager.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+        # --- Case 2: Continuing an EXISTING session ---
+        if not payload.sessionId:
+            raise HTTPException(status_code=400, detail="Missing sessionId for message.")
 
+        session = get_session(payload.sessionId)  # raises ValueError if not found
         user_message = payload.message or ""
-        session_manager.update_session(session_id, {"role": "user", "content": user_message})
 
-        # End interview after 8 questions (per the minimum requirements)
-        if session.get("questions_asked", 0) >= 8:
-            report = evaluator.generate_report(session["history"])
+        # Log user's message
+        update_session(payload.sessionId, {"role": "user", "content": user_message})
+
+        # Check for manual end
+        if user_message.strip().lower() == "end interview":
+            session["is_complete"] = True
+        else:
+            ai_reply = generate_response(
+                {"raw_candidate": session["candidate"]},
+                session["history"]
+            )
+            update_session(payload.sessionId, {"role": "assistant", "content": ai_reply})
+
+        session = get_session(payload.sessionId)  # refresh after update
+
+        if session["is_complete"]:
+            report = generate_report(session["history"])
             return {
-                "reply": "Thank you for completing the interview.",
-                "done": True,
-                "feedback": {
-                    "summary": report.get("decision", "Completed"),
-                    "strengths": report.get("strengths", []),
-                    "gaps": report.get("improvements", []),
-                    "next": ["Review skipped modules", "Continue building"]
-                }
+                "reply": "Thank you, that concludes the interview. Generating your feedback report now.",
+                "is_complete": True,
+                "feedback": report
             }
-
-        # Generate AI response
-        ai_reply = ai_agent.generate_response(session["candidate"], session["history"])
-        session_manager.update_session(session_id, {"role": "assistant", "content": ai_reply})
 
         return {
-            "reply": ai_reply,
-            "done": False
+            "reply": session["history"][-1]["content"],
+            "is_complete": False
         }
 
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
