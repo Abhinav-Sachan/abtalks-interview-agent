@@ -1,66 +1,54 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from interview import session_manager
-from interview import ai_agent  # 🔌 This imports the new brain!
+from typing import Optional, Dict, Any
 
-router = APIRouter()
+class InterviewRequest(BaseModel):
+    sessionId: str
+    candidate: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
 
-class CandidateInit(BaseModel):
-    name: str
-    target_role: str
-    experience_level: str
-
-class ChatMessage(BaseModel):
-    session_id: str
-    message: str
-
-@router.post("/start")
-def start_interview(candidate: CandidateInit):
+@router.post("/interview")
+def handle_official_interview(payload: InterviewRequest):
     try:
-        session_id = session_manager.create_session(candidate.model_dump())
-        return {"session_id": session_id, "status": "Ready"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        session_id = payload.sessionId
 
-@router.post("/chat")
-def chat_with_agent(payload: ChatMessage):
-    try:
-        session = session_manager.get_session(payload.session_id)
-        
-        # 1. Log candidate's input
-        session_manager.update_session(payload.session_id, {"role": "user", "content": payload.message})
+        # 1. Start Interview Turn (Bot sends candidate data)
+        if payload.candidate is not None:
+            # We save the raw candidate JSON so the AI can read their missions
+            session_manager.create_session_with_id(session_id, {"raw_candidate": payload.candidate})
+            return {
+                "reply": "Welcome to your AI Cohort technical interview. Let's discuss the systems you've built.",
+                "done": False
+            }
 
-        # 2. Call the REAL Breeth logic
-        candidate_data = session["candidate"]
-        chat_history = session["history"]
-        ai_reply = ai_agent.generate_response(candidate_data, chat_history)
-        
-        # 3. Log AI's response
-        session_manager.update_session(payload.session_id, {"role": "assistant", "content": ai_reply})
+        # 2. Conversation Turn (Bot sends user message)
+        session = session_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        user_message = payload.message or ""
+        session_manager.update_session(session_id, {"role": "user", "content": user_message})
+
+        # End interview after 8 questions (per the minimum requirements)
+        if session.get("questions_asked", 0) >= 8:
+            report = evaluator.generate_report(session["history"])
+            return {
+                "reply": "Thank you for completing the interview.",
+                "done": True,
+                "feedback": {
+                    "summary": report.get("decision", "Completed"),
+                    "strengths": report.get("strengths", []),
+                    "gaps": report.get("improvements", []),
+                    "next": ["Review skipped modules", "Continue building"]
+                }
+            }
+
+        # Generate AI response
+        ai_reply = ai_agent.generate_response(session["candidate"], session["history"])
+        session_manager.update_session(session_id, {"role": "assistant", "content": ai_reply})
 
         return {
-            "session_id": payload.session_id,
             "reply": ai_reply,
-            "is_complete": session["is_complete"],
-            "questions_asked": session["questions_asked"]
+            "done": False
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-from interview import evaluator
-
-@router.get("/evaluate/latest")
-def get_latest_evaluation():
-    try:
-        # Hackathon shortcut: grab the most recently created session
-        sessions = session_manager._SESSIONS
-        if not sessions:
-            raise HTTPException(status_code=404, detail="No sessions found")
-            
-        latest_session_id = list(sessions.keys())[-1]
-        session = sessions[latest_session_id]
-        
-        report = evaluator.generate_report(session["history"])
-        return report
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,6 @@
 import os
 import requests
+import json
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -14,14 +15,19 @@ if not GROQ_API_KEY:
 client = Groq(api_key=GROQ_API_KEY)
 
 def generate_response(candidate_data: dict, history: list) -> str:
-    role = candidate_data.get('target_role', 'Full-Stack Engineer')
-    level = candidate_data.get('experience_level', 'Junior')
+    # Extract the raw candidate data provided by the hackathon evaluator
+    raw_candidate = candidate_data.get("raw_candidate", {})
     
-    system_prompt = f"""You are an elite technical interviewer for a {level} {role} position.
+    system_prompt = f"""You are an expert technical interviewer for an enterprise AI Engineering Cohort.
+The candidate has completed a 31-day curriculum covering RAG, Vector Databases, Prompt Engineering, Agentic AI, MCP, and Deployment.
+
+Here is the candidate's exact profile and mission history:
+{json.dumps(raw_candidate, indent=2)}
+
 CRITICAL RULES:
-1. Ask exactly ONE technical question at a time.
-2. Acknowledge their previous answer before asking the next question.
-3. Keep your tone professional, direct, and challenging."""
+1. Ask exactly ONE technical question at a time based on the specific missions they passed, failed, or skipped.
+2. Adapt naturally to their answers and ask intelligent follow-up questions.
+3. Keep your tone professional and conversational."""
 
     # --- 1. GENERATE THE RESPONSE WITH GROQ ---
     # Groq expects a clean list of dictionaries for messages
